@@ -1,18 +1,25 @@
-# 🌦️ Weather Monitoring System 
+# 🌦️ Weather Monitoring System - Portfolio ADS
 
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text 
 from datetime import datetime
 import requests
 import os
 
+# =============================================================================
+# CONFIGURAÇÕES
+# =============================================================================
 
 app = Flask(__name__)
-
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///weather.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
+
+# =============================================================================
+# MODELO DO BANCO DE DADOS
+# =============================================================================
 
 class WeatherData(db.Model):
     __tablename__ = 'weather_data'
@@ -40,6 +47,9 @@ class WeatherData(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
+# =============================================================================
+# FUNÇÕES DA API EXTERNA
+# =============================================================================
 
 def get_weather_data(city_name):
     """
@@ -89,6 +99,7 @@ def get_weather_data(city_name):
         print(f"❌ Erro ao processar dados: {e}")
         return {'error': f'Dados inválidos da API: {str(e)}'}
 
+
 def save_weather_data(data):
     """Salva dados climáticos no banco"""
     if 'error' in data:
@@ -127,8 +138,8 @@ def get_all_weather_data():
 def home():
     """Página inicial com documentação"""
     return {
-        'message': '🌦️ Weather Monitoring API - Portfolio ADS',
-        'estudante': 'Ana Carolina - 2º Semestre ADS',
+        'message': '🌦️ Weather Monitoring API',
+        'estudante': 'Gabrieli Santana',
         'version': '1.0.0',
         'endpoints': {
             'GET /': 'Documentação da API',
@@ -141,10 +152,9 @@ def home():
 
 @app.route('/health')
 def health():
-    """Health check - verifica se está funcionando"""
+    """Health check - VERSAO CORRIGIDA"""
     try:
-  
-        db.session.execute('SELECT 1')
+        db.session.execute(text('SELECT 1'))
         db_status = 'healthy'
     except Exception as e:
         db_status = f'erro: {str(e)}'
