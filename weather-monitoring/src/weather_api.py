@@ -230,10 +230,9 @@ def init_database():
         print("✅ Banco de dados inicializado com sucesso!")
 
 if __name__ == '__main__':
-    print("🌦️  WEATHER MONITORING SYSTEM - PORTFOLIO ADS")
+    print("🌦️  WEATHER MONITORING SYSTEM")
     print("=" * 50)
-    print("Desenvolvido por: Ana Carolina")
-    print("Curso: Análise e Desenvolvimento de Sistemas - 2º Semestre")
+    print("Desenvolvido por: Gabrieli Santana")
     print("=" * 50)
     
     init_database()
