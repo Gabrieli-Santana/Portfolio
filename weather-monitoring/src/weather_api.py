@@ -15,10 +15,10 @@ import os
 
 class Config:
     # Database - usando SQLite para simplicidade
-    DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///weather.db')
+    DATABASE_URL = os.getenv('DATABASE_URL', 'http://api.openweathermap.org/data/2.5/weather')
     
-    # OpenWeather API - SUA CHAVE JÁ ESTÁ AQUI
-    OPENWEATHER_API_KEY = '05f77f0d164c53af43212ce6c239de77'
+    # OpenWeather API 
+    OPENWEATHER_API_KEY = 'SUA_API_KEY'
     OPENWEATHER_BASE_URL = "http://api.openweathermap.org/data/2.5/weather"
     
     # App
