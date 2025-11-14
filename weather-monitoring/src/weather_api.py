@@ -1,7 +1,9 @@
 # 🌦️ Weather Monitoring System - Portfolio ADS
+# 🌦️ Weather Monitoring System - Portfolio ADS
 
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text 
 from sqlalchemy import text 
 from datetime import datetime
 import requests
@@ -13,11 +15,13 @@ import os
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///weather.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///weather.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
 # =============================================================================
+# MODELO DO BANCO DE DADOS
 # MODELO DO BANCO DE DADOS
 # =============================================================================
 
@@ -49,6 +53,7 @@ class WeatherData(db.Model):
 
 # =============================================================================
 # FUNÇÕES DA API EXTERNA
+# FUNÇÕES DA API EXTERNA
 # =============================================================================
 
 def get_weather_data(city_name):
@@ -58,15 +63,21 @@ def get_weather_data(city_name):
     print(f"🌐 Buscando dados para: {city_name}")
     
     API_KEY = '05f77f0d164c53af43212ce6c239de77'
+    print(f"🌐 Buscando dados para: {city_name}")
+    
+    API_KEY = '05f77f0d164c53af43212ce6c239de77'
     
     params = {
         'q': city_name,
+        'appid': API_KEY,
         'appid': API_KEY,
         'units': 'metric',
         'lang': 'pt_br'
     }
     
     try:
+        response = requests.get("http://api.openweathermap.org/data/2.5/weather", 
+                              params=params, timeout=10)
         response = requests.get("http://api.openweathermap.org/data/2.5/weather", 
                               params=params, timeout=10)
         
@@ -102,6 +113,7 @@ def get_weather_data(city_name):
 
 def save_weather_data(data):
     """Salva dados climáticos no banco"""
+    """Salva dados climáticos no banco"""
     if 'error' in data:
         return None
         
@@ -119,13 +131,16 @@ def save_weather_data(data):
         db.session.add(weather)
         db.session.commit()
         print(f"💾 Dados salvos: {weather.city}")
+        print(f"💾 Dados salvos: {weather.city}")
         return weather
     except Exception as e:
         db.session.rollback()
         print(f"❌ Erro ao salvar: {e}")
+        print(f"❌ Erro ao salvar: {e}")
         return None
 
 def get_all_weather_data():
+    """Busca todos os dados do banco"""
     """Busca todos os dados do banco"""
     try:
         return WeatherData.query.order_by(WeatherData.created_at.desc()).all()
@@ -140,20 +155,26 @@ def home():
     return {
         'message': '🌦️ Weather Monitoring API',
         'estudante': 'Gabrieli Santana',
+        'message': '🌦️ Weather Monitoring API',
+        'estudante': 'Gabrieli Santana',
         'version': '1.0.0',
         'endpoints': {
             'GET /': 'Documentação da API',
             'GET /health': 'Health check do sistema',
             'GET /api/weather': 'Listar todos os dados climáticos',
             'POST /api/weather': 'Buscar e salvar dados de uma cidade'
+            'POST /api/weather': 'Buscar e salvar dados de uma cidade'
         },
+        'exemplo_uso': 'Use: curl -X POST http://localhost:5000/api/weather -H "Content-Type: application/json" -d \'{"city": "São Paulo"}\''
         'exemplo_uso': 'Use: curl -X POST http://localhost:5000/api/weather -H "Content-Type: application/json" -d \'{"city": "São Paulo"}\''
     }
 
 @app.route('/health')
 def health():
     """Health check - VERSAO CORRIGIDA"""
+    """Health check - VERSAO CORRIGIDA"""
     try:
+        db.session.execute(text('SELECT 1'))
         db.session.execute(text('SELECT 1'))
         db_status = 'healthy'
     except Exception as e:
@@ -162,6 +183,7 @@ def health():
     return {
         'status': 'online',
         'database': db_status,
+        'timestamp': datetime.utcnow().isoformat()
         'timestamp': datetime.utcnow().isoformat()
     }
 
@@ -202,6 +224,7 @@ def create_weather():
             }, 400
         
         print(f"📍 Buscando dados para: {city}")
+        print(f"📍 Buscando dados para: {city}")
         
         weather_info = get_weather_data(city)
         
@@ -235,6 +258,7 @@ def create_weather():
 
 def init_database():
     """Inicializa o banco de dados"""
+    """Inicializa o banco de dados"""
     with app.app_context():
         db.create_all()
         print("✅ Banco de dados inicializado com sucesso!")
@@ -244,10 +268,17 @@ if __name__ == '__main__':
     print("=" * 50)
     print("Desenvolvido por: Gabrieli Santana")
     print("=" * 50)
+    print("🌦️  WEATHER MONITORING SYSTEM")
+    print("=" * 50)
+    print("Desenvolvido por: Gabrieli Santana")
+    print("=" * 50)
     
     init_database()
     
     print("\n🚀 SERVIDOR INICIANDO...")
+    print("📍 ACESSE: http://localhost:5000")
+    print("💡 TESTE: http://localhost:5000/health")
+    print("=" * 50)
     print("📍 ACESSE: http://localhost:5000")
     print("💡 TESTE: http://localhost:5000/health")
     print("=" * 50)

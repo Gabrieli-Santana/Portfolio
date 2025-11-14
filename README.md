@@ -1,6 +1,6 @@
-# 🌟 Portfólio de Projetos Python - Estudante ADS
+# 🌟 Portfólio de Projetos Python
 
-Olá! 👋 Sou estudante de Análise e Desenvolvimento de Sistemas e estou começando meu portfólio!
+Olá! Meu nome é Gabrieli, sou estudante de Análise e Desenvolvimento de Sistemas e estou começando meu portfólio!
 
 ## 📚 Sobre o Portfólio
 

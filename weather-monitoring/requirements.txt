@@ -1,3 +1,9 @@
+<<<<<<< HEAD
 Flask==2.3.3
 Flask-SQLAlchemy==3.0.5
 requests==2.31.0
+=======
+Flask==2.3.3
+Flask-SQLAlchemy==3.0.5
+requests==2.31.0
+>>>>>>> 454e66e708a01d8f3a91cde03dda08c576227432
