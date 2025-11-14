@@ -1,286 +1,262 @@
-# 🌦️ Weather Monitoring System - Portfolio ADS
-# 🌦️ Weather Monitoring System - Portfolio ADS
-
-from flask import Flask, jsonify, request
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text 
-from sqlalchemy import text 
-from datetime import datetime
 import requests
 import os
+from datetime import datetime, timedelta
+import logging
+from typing import Dict, Optional, List
 
-# =============================================================================
-# CONFIGURAÇÕES
-# =============================================================================
+# Configurar logging
+logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///weather.db'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///weather.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db = SQLAlchemy(app)
-
-# =============================================================================
-# MODELO DO BANCO DE DADOS
-# MODELO DO BANCO DE DADOS
-# =============================================================================
-
-class WeatherData(db.Model):
-    __tablename__ = 'weather_data'
+class WeatherAPI:
+    """Classe para interagir com a API do OpenWeatherMap"""
     
-    id = db.Column(db.Integer, primary_key=True)
-    city = db.Column(db.String(100), nullable=False)
-    country = db.Column(db.String(10))
-    temperature = db.Column(db.Float, nullable=False)
-    humidity = db.Column(db.Integer)
-    pressure = db.Column(db.Integer)
-    description = db.Column(db.String(200))
-    wind_speed = db.Column(db.Float)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key or os.getenv('OPENWEATHER_API_KEY')
+        self.base_url = "http://api.openweathermap.org/data/2.5"
+        
+        if not self.api_key:
+            logger.warning("OpenWeather API key não encontrada")
     
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'city': self.city,
-            'country': self.country,
-            'temperature': round(self.temperature, 2),
-            'humidity': self.humidity,
-            'pressure': self.pressure,
-            'description': self.description,
-            'wind_speed': round(self.wind_speed, 2),
-            'created_at': self.created_at.isoformat() if self.created_at else None
-        }
-
-# =============================================================================
-# FUNÇÕES DA API EXTERNA
-# FUNÇÕES DA API EXTERNA
-# =============================================================================
-
-def get_weather_data(city_name):
-    """
-    Busca dados climáticos da OpenWeather API
-    """
-    print(f"🌐 Buscando dados para: {city_name}")
+    def get_current_weather(self, city: str, country_code: str = None) -> Optional[Dict]:
+        """
+        Obter dados meteorológicos atuais para uma cidade
+        
+        Args:
+            city: Nome da cidade
+            country_code: Código do país (opcional)
+        
+        Returns:
+            Dict com dados meteorológicos ou None em caso de erro
+        """
+        try:
+            # Construir query
+            query = city
+            if country_code:
+                query += f",{country_code}"
+            
+            # Fazer requisição
+            url = f"{self.base_url}/weather"
+            params = {
+                'q': query,
+                'appid': self.api_key,
+                'units': 'metric',
+                'lang': 'pt_br'
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            # Processar e formatar dados
+            processed_data = {
+                'city': data['name'],
+                'country': data['sys']['country'],
+                'temperature': round(data['main']['temp'], 1),
+                'feels_like': round(data['main']['feels_like'], 1),
+                'humidity': data['main']['humidity'],
+                'pressure': data['main']['pressure'],
+                'description': data['weather'][0]['description'].title(),
+                'icon': data['weather'][0]['icon'],
+                'wind_speed': data['wind']['speed'],
+                'wind_deg': data.get('wind', {}).get('deg', 0),
+                'visibility': data.get('visibility', 0),
+                'clouds': data['clouds']['all'],
+                'sunrise': datetime.fromtimestamp(data['sys']['sunrise']).strftime('%H:%M'),
+                'sunset': datetime.fromtimestamp(data['sys']['sunset']).strftime('%H:%M'),
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            logger.info(f"Dados meteorológicos obtidos para {city}")
+            return processed_data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Erro na requisição para {city}: {e}")
+            return None
+        except KeyError as e:
+            logger.error(f"Dados incompletos da API para {city}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Erro inesperado para {city}: {e}")
+            return None
     
-    API_KEY = '05f77f0d164c53af43212ce6c239de77'
-    print(f"🌐 Buscando dados para: {city_name}")
+    def get_weather_forecast(self, city: str, country_code: str = None, days: int = 5) -> Optional[List[Dict]]:
+        """
+        Obter previsão do tempo para os próximos dias
+        
+        Args:
+            city: Nome da cidade
+            country_code: Código do país (opcional)
+            days: Número de dias da previsão (máx. 5)
+        
+        Returns:
+            Lista de dicionários com previsão ou None em caso de erro
+        """
+        try:
+            # Construir query
+            query = city
+            if country_code:
+                query += f",{country_code}"
+            
+            # Fazer requisição
+            url = f"{self.base_url}/forecast"
+            params = {
+                'q': query,
+                'appid': self.api_key,
+                'units': 'metric',
+                'lang': 'pt_br',
+                'cnt': days * 8  # 8 previsões por dia (3 horas cada)
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            # Processar previsões
+            forecasts = []
+            current_date = None
+            daily_forecast = None
+            
+            for forecast in data['list']:
+                forecast_date = datetime.fromtimestamp(forecast['dt']).date()
+                
+                # Nova previsão diária
+                if forecast_date != current_date:
+                    if daily_forecast:
+                        forecasts.append(daily_forecast)
+                    
+                    current_date = forecast_date
+                    daily_forecast = {
+                        'date': forecast_date.strftime('%Y-%m-%d'),
+                        'day_name': forecast_date.strftime('%A'),
+                        'temp_min': forecast['main']['temp_min'],
+                        'temp_max': forecast['main']['temp_max'],
+                        'description': forecast['weather'][0]['description'].title(),
+                        'icon': forecast['weather'][0]['icon'],
+                        'humidity': forecast['main']['humidity'],
+                        'wind_speed': forecast['wind']['speed'],
+                        'precipitation': forecast.get('pop', 0) * 100  # Probabilidade de chuva em %
+                    }
+                else:
+                    # Atualizar mínimas e máximas
+                    daily_forecast['temp_min'] = min(daily_forecast['temp_min'], forecast['main']['temp_min'])
+                    daily_forecast['temp_max'] = max(daily_forecast['temp_max'], forecast['main']['temp_max'])
+            
+            # Adicionar última previsão
+            if daily_forecast:
+                forecasts.append(daily_forecast)
+            
+            logger.info(f"Previsão obtida para {city} - {len(forecasts)} dias")
+            return forecasts[:days]  # Limitar ao número solicitado de dias
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Erro na requisição de previsão para {city}: {e}")
+            return None
+        except KeyError as e:
+            logger.error(f"Dados incompletos da previsão para {city}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Erro inesperado na previsão para {city}: {e}")
+            return None
     
-    API_KEY = '05f77f0d164c53af43212ce6c239de77'
+    def get_weather_by_coordinates(self, lat: float, lon: float) -> Optional[Dict]:
+        """
+        Obter dados meteorológicos por coordenadas
+        
+        Args:
+            lat: Latitude
+            lon: Longitude
+        
+        Returns:
+            Dict com dados meteorológicos ou None em caso de erro
+        """
+        try:
+            url = f"{self.base_url}/weather"
+            params = {
+                'lat': lat,
+                'lon': lon,
+                'appid': self.api_key,
+                'units': 'metric',
+                'lang': 'pt_br'
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            processed_data = {
+                'city': data['name'],
+                'country': data['sys']['country'],
+                'temperature': round(data['main']['temp'], 1),
+                'feels_like': round(data['main']['feels_like'], 1),
+                'humidity': data['main']['humidity'],
+                'pressure': data['main']['pressure'],
+                'description': data['weather'][0]['description'].title(),
+                'icon': data['weather'][0]['icon'],
+                'wind_speed': data['wind']['speed'],
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            logger.info(f"Dados obtidos por coordenadas: {lat}, {lon}")
+            return processed_data
+            
+        except Exception as e:
+            logger.error(f"Erro ao obter dados por coordenadas {lat}, {lon}: {e}")
+            return None
     
-    params = {
-        'q': city_name,
-        'appid': API_KEY,
-        'appid': API_KEY,
-        'units': 'metric',
-        'lang': 'pt_br'
-    }
+    def validate_api_key(self) -> bool:
+        """
+        Validar se a API key está funcionando
+        
+        Returns:
+            bool: True se a key é válida, False caso contrário
+        """
+        try:
+            url = f"{self.base_url}/weather"
+            params = {
+                'q': 'London',
+                'appid': self.api_key
+            }
+            
+            response = requests.get(url, params=params, timeout=5)
+            return response.status_code == 200
+            
+        except Exception:
+            return False
+
+
+# Função de utilidade para criar instância da API
+def create_weather_api() -> WeatherAPI:
+    """Factory function para criar instância do WeatherAPI"""
+    return WeatherAPI()
+
+
+# Exemplo de uso
+if __name__ == "__main__":
+    # Configurar logging básico
+    logging.basicConfig(level=logging.INFO)
     
-    try:
-        response = requests.get("http://api.openweathermap.org/data/2.5/weather", 
-                              params=params, timeout=10)
-        response = requests.get("http://api.openweathermap.org/data/2.5/weather", 
-                              params=params, timeout=10)
-        
-        if response.status_code == 401:
-            return {'error': 'API key inválida ou expirada'}
-        elif response.status_code == 404:
-            return {'error': 'Cidade não encontrada'}
-        elif response.status_code != 200:
-            return {'error': f'Erro na API: {response.status_code}'}
-        
-        data = response.json()
-        
-        weather_info = {
-            'city': data['name'],
-            'country': data['sys']['country'],
-            'temperature': data['main']['temp'],
-            'humidity': data['main']['humidity'],
-            'pressure': data['main']['pressure'],
-            'description': data['weather'][0]['description'],
-            'wind_speed': data['wind']['speed']
-        }
-        
-        print(f"✅ Dados obtidos: {weather_info['temperature']}°C em {weather_info['city']}")
-        return weather_info
-        
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Erro na requisição: {e}")
-        return {'error': f'Falha ao buscar dados: {str(e)}'}
-    except KeyError as e:
-        print(f"❌ Erro ao processar dados: {e}")
-        return {'error': f'Dados inválidos da API: {str(e)}'}
-
-
-def save_weather_data(data):
-    """Salva dados climáticos no banco"""
-    """Salva dados climáticos no banco"""
-    if 'error' in data:
-        return None
-        
-    weather = WeatherData(
-        city=data['city'],
-        country=data.get('country'),
-        temperature=data['temperature'],
-        humidity=data.get('humidity'),
-        pressure=data.get('pressure'),
-        description=data.get('description'),
-        wind_speed=data.get('wind_speed')
-    )
+    # Testar a API (substitua pela sua chave real)
+    api = WeatherAPI(api_key="sua_chave_aqui")
     
-    try:
-        db.session.add(weather)
-        db.session.commit()
-        print(f"💾 Dados salvos: {weather.city}")
-        print(f"💾 Dados salvos: {weather.city}")
-        return weather
-    except Exception as e:
-        db.session.rollback()
-        print(f"❌ Erro ao salvar: {e}")
-        print(f"❌ Erro ao salvar: {e}")
-        return None
-
-def get_all_weather_data():
-    """Busca todos os dados do banco"""
-    """Busca todos os dados do banco"""
-    try:
-        return WeatherData.query.order_by(WeatherData.created_at.desc()).all()
-    except Exception as e:
-        print(f"❌ Erro ao buscar dados: {e}")
-        return []
-
-
-@app.route('/')
-def home():
-    """Página inicial com documentação"""
-    return {
-        'message': '🌦️ Weather Monitoring API',
-        'estudante': 'Gabrieli Santana',
-        'message': '🌦️ Weather Monitoring API',
-        'estudante': 'Gabrieli Santana',
-        'version': '1.0.0',
-        'endpoints': {
-            'GET /': 'Documentação da API',
-            'GET /health': 'Health check do sistema',
-            'GET /api/weather': 'Listar todos os dados climáticos',
-            'POST /api/weather': 'Buscar e salvar dados de uma cidade'
-            'POST /api/weather': 'Buscar e salvar dados de uma cidade'
-        },
-        'exemplo_uso': 'Use: curl -X POST http://localhost:5000/api/weather -H "Content-Type: application/json" -d \'{"city": "São Paulo"}\''
-        'exemplo_uso': 'Use: curl -X POST http://localhost:5000/api/weather -H "Content-Type: application/json" -d \'{"city": "São Paulo"}\''
-    }
-
-@app.route('/health')
-def health():
-    """Health check - VERSAO CORRIGIDA"""
-    """Health check - VERSAO CORRIGIDA"""
-    try:
-        db.session.execute(text('SELECT 1'))
-        db.session.execute(text('SELECT 1'))
-        db_status = 'healthy'
-    except Exception as e:
-        db_status = f'erro: {str(e)}'
-    
-    return {
-        'status': 'online',
-        'database': db_status,
-        'timestamp': datetime.utcnow().isoformat()
-        'timestamp': datetime.utcnow().isoformat()
-    }
-
-@app.route('/api/weather', methods=['GET'])
-def get_all_weather():
-    """Busca todos os dados climáticos armazenados"""
-    try:
-        weather_data = get_all_weather_data()
-        return {
-            'status': 'success',
-            'data': [data.to_dict() for data in weather_data],
-            'count': len(weather_data),
-            'timestamp': datetime.utcnow().isoformat()
-        }, 200
-    except Exception as e:
-        return {
-            'status': 'error',
-            'message': f'Erro ao buscar dados: {str(e)}'
-        }, 500
-
-@app.route('/api/weather', methods=['POST'])
-def create_weather():
-    """Busca dados da OpenWeather e salva no banco"""
-    try:
-        if not request.is_json:
-            return {
-                'status': 'error',
-                'message': 'Content-Type deve ser application/json'
-            }, 400
+    if api.validate_api_key():
+        print("✅ API Key válida")
         
-        data = request.get_json()
-        city = data.get('city')
+        # Testar dados atuais
+        current_weather = api.get_current_weather("São Paulo", "BR")
+        if current_weather:
+            print(f"🌤️  Clima em {current_weather['city']}:")
+            print(f"   Temperatura: {current_weather['temperature']}°C")
+            print(f"   Descrição: {current_weather['description']}")
         
-        if not city:
-            return {
-                'status': 'error',
-                'message': 'Parâmetro "city" é obrigatório'
-            }, 400
-        
-        print(f"📍 Buscando dados para: {city}")
-        print(f"📍 Buscando dados para: {city}")
-        
-        weather_info = get_weather_data(city)
-        
-        if 'error' in weather_info:
-            return {
-                'status': 'error',
-                'message': weather_info['error']
-            }, 400
-        
-        saved_data = save_weather_data(weather_info)
-        
-        if not saved_data:
-            return {
-                'status': 'error',
-                'message': 'Erro ao salvar dados no banco'
-            }, 500
-        
-        return {
-            'status': 'success',
-            'message': f'Dados climáticos de {city} salvos com sucesso!',
-            'data': saved_data.to_dict(),
-            'timestamp': datetime.utcnow().isoformat()
-        }, 201
-        
-    except Exception as e:
-        return {
-            'status': 'error',
-            'message': f'Erro interno: {str(e)}'
-        }, 500
-
-
-def init_database():
-    """Inicializa o banco de dados"""
-    """Inicializa o banco de dados"""
-    with app.app_context():
-        db.create_all()
-        print("✅ Banco de dados inicializado com sucesso!")
-
-if __name__ == '__main__':
-    print("🌦️  WEATHER MONITORING SYSTEM")
-    print("=" * 50)
-    print("Desenvolvido por: Gabrieli Santana")
-    print("=" * 50)
-    print("🌦️  WEATHER MONITORING SYSTEM")
-    print("=" * 50)
-    print("Desenvolvido por: Gabrieli Santana")
-    print("=" * 50)
-    
-    init_database()
-    
-    print("\n🚀 SERVIDOR INICIANDO...")
-    print("📍 ACESSE: http://localhost:5000")
-    print("💡 TESTE: http://localhost:5000/health")
-    print("=" * 50)
-    print("📍 ACESSE: http://localhost:5000")
-    print("💡 TESTE: http://localhost:5000/health")
-    print("=" * 50)
-    
-    app.run(host='0.0.0.0', port=5000, debug=True)
+        # Testar previsão
+        forecast = api.get_weather_forecast("Rio de Janeiro", "BR", 3)
+        if forecast:
+            print(f"\n📅 Previsão para {len(forecast)} dias:")
+            for day in forecast:
+                print(f"   {day['day_name']}: {day['temp_min']}°C - {day['temp_max']}°C, {day['description']}")
+    else:
+        print("❌ API Key inválida ou não configurada")
+        print("💡 Configure a variável de ambiente OPENWEATHER_API_KEY")
