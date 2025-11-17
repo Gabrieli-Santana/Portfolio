@@ -1,0 +1,14 @@
+# monitoring-dashboard/create_favicon.py
+from PIL import Image, ImageDraw
+import os
+
+# Cria um ícone simples 16x16
+img = Image.new('RGB', (16, 16), color = '#667eea')
+draw = ImageDraw.Draw(img)
+draw.rectangle([4, 4, 12, 12], fill='#764ba2')
+
+# Salva como favicon
+favicon_path = os.path.join('frontend', 'static', 'favicon.ico')
+img.save(favicon_path, format='ICO')
+
+print(f"✅ Favicon criado: {favicon_path}")
