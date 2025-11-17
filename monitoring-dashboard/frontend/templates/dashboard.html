@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Monitoring Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --critical: #dc3545;
+            --warning: #ffc107;
+            --normal: #28a745;
+            --primary: #007bff;
+            --info: #17a2b8;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border-left: 5px solid var(--primary);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 35px rgba(0,0,0,0.15);
+        }
+        
+        .card.critical { border-left-color: var(--critical); }
+        .card.warning { border-left-color: var(--warning); }
+        .card.normal { border-left-color: var(--normal); }
+        
+        .card h3 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 1.3em;
+        }
+        
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin: 15px 0;
+            color: #333;
+        }
+        
+        .chart-container {
+            height: 120px;
+            margin-top: 15px;
+        }
+        
+        .alerts-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        
+        .alerts-panel h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .alert {
+            padding: 12px 15px;
+            margin: 8px 0;
+            border-radius: 8px;
+            color: white;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .alert.critical { background: var(--critical); }
+        .alert.warning { background: var(--warning); }
+        .alert.normal { background: var(--normal); }
+        .alert.info { background: var(--info); }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖥️ Server Monitoring Dashboard</h1>
+        
+        <div class="dashboard">
+            <div class="card" id="cpu-card">
+                <h3>⚡ CPU Usage</h3>
+                <div class="metric-value" id="cpu-value">0%</div>
+                <div>Cores: <span id="cpu-cores">0</span></div>
+                <div class="chart-container">
+                    <canvas id="cpu-chart"></canvas>
+                </div>
+            </div>
+            
+            <div class="card" id="memory-card">
+                <h3>💾 Memory</h3>
+                <div class="metric-value" id="memory-value">0%</div>
+                <div>Used: <span id="memory-used">0</span>GB / <span id="memory-total">0</span>GB</div>
+                <div class="chart-container">
+                    <canvas id="memory-chart"></canvas>
+                </div>
+            </div>
+            
+            <div class="card" id="disk-card">
+                <h3>💽 Disk</h3>
+                <div class="metric-value" id="disk-value">0%</div>
+                <div>Used: <span id="disk-used">0</span>GB / <span id="disk-total">0</span>GB</div>
+            </div>
+            
+            <div class="card">
+                <h3>🌐 Network & Processes</h3>
+                <div>Upload: <span id="network-sent">0</span> MB</div>
+                <div>Download: <span id="network-recv">0</span> MB</div>
+                <div>Processes: <span id="processes">0</span></div>
+            </div>
+        </div>
+        
+        <div class="alerts-panel">
+            <h3>🚨 System Alerts</h3>
+            <div id="alerts-container">
+                <div class="alert info">Sistema inicializado. Aguardando métricas...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuração dos gráficos
+        const cpuCtx = document.getElementById('cpu-chart').getContext('2d');
+        const memoryCtx = document.getElementById('memory-chart').getContext('2d');
+        
+        const cpuChart = new Chart(cpuCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'CPU Usage %',
+                    data: [],
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+        
+        const memoryChart = new Chart(memoryCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Memory Usage %',
+                    data: [],
+                    borderColor: '#28a745',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+        
+        // WebSocket connection
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+            
+            ws.onopen = function() {
+                console.log('✅ Conectado ao servidor WebSocket');
+                addAlert('info', 'Conectado ao servidor. Recebendo métricas...');
+            };
+            
+            ws.onmessage = function(event) {
+                const metrics = JSON.parse(event.data);
+                updateDashboard(metrics);
+            };
+            
+            ws.onclose = function() {
+                console.log('❌ Conexão WebSocket fechada. Tentando reconectar...');
+                addAlert('warning', 'Conexão perdida. Tentando reconectar...');
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onerror = function(error) {
+                console.error('❌ Erro WebSocket:', error);
+                addAlert('critical', 'Erro de conexão com o servidor');
+            };
+        }
+        
+        function updateDashboard(metrics) {
+            if (!metrics) return;
+            
+            // Atualiza valores
+            document.getElementById('cpu-value').textContent = metrics.cpu.percent.toFixed(1) + '%';
+            document.getElementById('cpu-cores').textContent = metrics.cpu.cores;
+            document.getElementById('memory-value').textContent = metrics.memory.percent.toFixed(1) + '%';
+            document.getElementById('memory-used').textContent = metrics.memory.used;
+            document.getElementById('memory-total').textContent = metrics.memory.total;
+            document.getElementById('disk-value').textContent = metrics.disk.percent.toFixed(1) + '%';
+            document.getElementById('disk-used').textContent = metrics.disk.used;
+            document.getElementById('disk-total').textContent = metrics.disk.total;
+            document.getElementById('network-sent').textContent = metrics.network.sent;
+            document.getElementById('network-recv').textContent = metrics.network.received;
+            document.getElementById('processes').textContent = metrics.processes;
+            
+            // Atualiza status dos cards
+            updateCardStatus('cpu-card', metrics.cpu.status);
+            updateCardStatus('memory-card', metrics.memory.status);
+            updateCardStatus('disk-card', metrics.disk.status);
+            
+            // Atualiza gráficos
+            updateChart(cpuChart, metrics.cpu.percent);
+            updateChart(memoryChart, metrics.memory.percent);
+            
+            // Verifica alertas
+            checkAlerts(metrics);
+        }
+        
+        function updateCardStatus(cardId, status) {
+            const card = document.getElementById(cardId);
+            card.className = `card ${status}`;
+        }
+        
+        function updateChart(chart, value) {
+            const now = new Date().toLocaleTimeString();
+            chart.data.labels.push(now);
+            chart.data.datasets[0].data.push(value);
+            
+            // Mantém apenas os últimos 15 pontos
+            if (chart.data.labels.length > 15) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+            }
+            
+            chart.update('none');
+        }
+        
+        function checkAlerts(metrics) {
+            if (metrics.cpu.percent > 80) {
+                addAlert('critical', `CPU usage critical: ${metrics.cpu.percent}%`);
+            }
+            if (metrics.memory.percent > 85) {
+                addAlert('critical', `Memory usage critical: ${metrics.memory.percent}%`);
+            }
+            if (metrics.disk.percent > 90) {
+                addAlert('critical', `Disk usage critical: ${metrics.disk.percent}%`);
+            }
+        }
+        
+        function addAlert(level, message) {
+            const alertsContainer = document.getElementById('alerts-container');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert ${level}`;
+            alertDiv.innerHTML = `<strong>${level.toUpperCase()}:</strong> ${message}`;
+            
+            // Adiciona no início
+            alertsContainer.insertBefore(alertDiv, alertsContainer.firstChild);
+            
+            // Limita a 5 alertas
+            if (alertsContainer.children.length > 5) {
+                alertsContainer.removeChild(alertsContainer.lastChild);
+            }
+        }
+        
+        // Inicia a conexão quando a página carregar
+        document.addEventListener('DOMContentLoaded', connectWebSocket);
+    </script>
+</body>
+</html>
