@@ -1,0 +1,48 @@
+<!-- monitoring-dashboard/frontend/test_local.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Teste Local Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial; background: #667eea; color: white; padding: 20px; }
+        .card { background: white; color: black; padding: 20px; margin: 10px; border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <h1>🎯 Teste Local do Dashboard</h1>
+    
+    <div class="card">
+        <h3>Para testar se o backend está funcionando:</h3>
+        <p>Abra o console (F12) e cole:</p>
+        <pre>
+fetch('http://localhost:8000/api/metrics')
+  .then(r => r.json())
+  .then(console.log)
+        </pre>
+    </div>
+
+    <script>
+        // Teste automático da API
+        fetch('http://localhost:8000/api/metrics')
+            .then(response => response.json())
+            .then(data => {
+                document.body.innerHTML += `
+                    <div class="card" style="background: #d4edda;">
+                        <h3>✅ Backend Funcionando!</h3>
+                        <p>CPU: ${data.cpu.percent}%</p>
+                        <p>Memória: ${data.memory.percent}%</p>
+                    </div>
+                `;
+            })
+            .catch(error => {
+                document.body.innerHTML += `
+                    <div class="card" style="background: #f8d7da;">
+                        <h3>❌ Erro no Backend</h3>
+                        <p>${error}</p>
+                    </div>
+                `;
+            });
+    </script>
+</body>
+</html>
